@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
+import tensorlayer as tl
 
 def conv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
                bias_term=True, weights_initializer=None, biases_initializer=None, reuse=None):
@@ -26,17 +27,23 @@ def conv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
             tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
                                  tf.nn.l2_loss(weights))
 
-    conv = tf.nn.conv2d(bottom, filter=weights,
-        strides=[1, stride, stride, 1], padding=padding)
+    #conv = tf.nn.conv2d(bottom, filters=weights,
+        #strides=[1, stride, stride, 1], padding=padding)
     if bias_term:
-        conv = tf.nn.bias_add(conv, biases)
+        #conv = tf.nn.bias_add(conv, biases)
+        conv = tl.layers.DeformableConv2d(bottom, n_filter=weights, 
+                                      filter_size=(1, stride, stride, 1), padding=padding, b_init=biases)
+    else:
+        conv = tl.layers.DeformableConv2d(bottom, n_filter=weights, 
+                                      filter_size=(1, stride, stride, 1), padding=padding)
     return conv
 
 def conv_relu_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
                     bias_term=True, weights_initializer=None, biases_initializer=None, reuse=None):
     conv = conv_layer(name, bottom, kernel_size, stride, output_dim, padding,
                       bias_term, weights_initializer, biases_initializer, reuse=reuse)
-    relu = tf.nn.relu(conv)
+    #relu = tf.nn.relu(conv)
+    relu = tl.layers.PRelu(conv)
     return relu
 
 def deconv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
@@ -65,11 +72,16 @@ def deconv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
             tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
                                  tf.nn.l2_loss(weights))
 
-    deconv = tf.nn.conv2d_transpose(bottom, filter=weights,
-        output_shape=output_shape, strides=[1, stride, stride, 1],
-        padding=padding)
+    #deconv = tf.nn.conv2d_transpose(bottom, filter=weights,
+        #output_shape=output_shape, strides=[1, stride, stride, 1],
+        #padding=padding)
     if bias_term:
-        deconv = tf.nn.bias_add(deconv, biases)
+        #deconv = tf.nn.bias_add(deconv, biases)
+        deconv = tl.layers.DeConv2d(n_filters=weights, filtersize=(1, stride, stride, 1),
+                               padding=padding, name=bottom, dataformat=output_shape, b_init=biases)
+    else:
+        deconv = tl.layers.DeConv2d(n_filters=weights, filtersize=(1, stride, stride, 1),
+                               padding=padding, name=bottom, dataformat=output_shape)
     return deconv
 
 def deconv_relu_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
