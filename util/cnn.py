@@ -27,23 +27,36 @@ def conv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
             tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
                                  tf.nn.l2_loss(weights))
 
-    #conv = tf.nn.conv2d(bottom, filters=weights,
-        #strides=[1, stride, stride, 1], padding=padding)
+    """
+    # conv = tf.nn.conv2d(bottom, filter=weights,
+          # strides=[1, stride, stride, 1], padding=padding)
     if bias_term:
-        #conv = tf.nn.bias_add(conv, biases)
-        conv = tl.layers.DeformableConv2d(bottom, n_filter=weights, 
-                                      filter_size=(1, stride, stride, 1), padding=padding, b_init=biases)
+        # conv = tf.nn.bias_add(conv, biases)
+        net = tl.layers.InputLayer(inputs=bottom, name=name+'input')
+        conv = tl.layers.Conv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, input_dim, output_dim],
+                               strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer, b_init=biases_initializer,
+                               name=name+'conv2d')
+
     else:
-        conv = tl.layers.DeformableConv2d(bottom, n_filter=weights, 
-                                      filter_size=(1, stride, stride, 1), padding=padding)
-    return conv
+        conv = tl.layers.Conv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, input_dim, output_dim],
+                               strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer, 
+                               name=name+'conv2d')
+    """
+    net = tl.layers.InputLayer(inputs=bottom, name=name+'input')
+    conv = tl.layers.Conv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, input_dim, output_dim],
+                               strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer, b_init=biases_initializer,
+                               name=name+'conv2d')
+    return conv.outputs
 
 def conv_relu_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
                     bias_term=True, weights_initializer=None, biases_initializer=None, reuse=None):
     conv = conv_layer(name, bottom, kernel_size, stride, output_dim, padding,
                       bias_term, weights_initializer, biases_initializer, reuse=reuse)
-    #relu = tf.nn.relu(conv)
-    relu = tl.layers.PRelu(conv)
+    # print(type(conv))
+    relu = tf.nn.relu(conv)
     return relu
 
 def deconv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
@@ -75,26 +88,42 @@ def deconv_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
     #deconv = tf.nn.conv2d_transpose(bottom, filter=weights,
         #output_shape=output_shape, strides=[1, stride, stride, 1],
         #padding=padding)
+    net = tl.layers.InputLayer(inputs=bottom, name=name+'input')
+    """
     if bias_term:
         #deconv = tf.nn.bias_add(deconv, biases)
-        deconv = tl.layers.DeConv2d(n_filters=weights, filtersize=(1, stride, stride, 1),
-                               padding=padding, name=bottom, dataformat=output_shape, b_init=biases)
+        deconv = tl.layers.DeConv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, output_dim, input_dim],
+                               output_shape=output_shape, strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer, b_init=biases_initializer,
+                               name=name+'deconv2d')
+
     else:
-        deconv = tl.layers.DeConv2d(n_filters=weights, filtersize=(1, stride, stride, 1),
-                               padding=padding, name=bottom, dataformat=output_shape)
-    return deconv
+        deconv = tl.layers.DeConv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, output_dim, input_dim],
+                               output_shape=output_shape, strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer,
+                               name=name+'deconv2d')
+    """
+    deconv = tl.layers.DeConv2dLayer(net, act=tf.identity, shape=[kernel_size, kernel_size, output_dim, input_dim],
+                               output_shape=output_shape, strides=[1, stride, stride, 1],
+                               padding=padding, W_init=weights_initializer, b_init=biases_initializer,
+                               name=name+'deconv2d')
+    return deconv.outputs
 
 def deconv_relu_layer(name, bottom, kernel_size, stride, output_dim, padding='SAME',
                       bias_term=True, weights_initializer=None, biases_initializer=None, reuse=None):
     deconv = deconv_layer(name, bottom, kernel_size, stride, output_dim, padding,
                           bias_term, weights_initializer, biases_initializer, reuse=reuse)
+    # relu = tl.layers.PReluLayer(deconv)
     relu = tf.nn.relu(deconv)
     return relu
 
 def pooling_layer(name, bottom, kernel_size, stride):
-    pool = tf.nn.max_pool(bottom, ksize=[1, kernel_size, kernel_size, 1],
-        strides=[1, stride, stride, 1], padding='SAME', name=name)
-    return pool
+    #pool = tf.nn.max_pool(bottom, ksize=[1, kernel_size, kernel_size, 1],
+    #    strides=[1, stride, stride, 1], padding='SAME', name=name)
+    net = tl.layers.InputLayer(inputs=bottom, name=name+'input')
+    pool = tl.layers.PoolLayer(net, ksize=[1, kernel_size, kernel_size, 1],
+           strides=[1, stride, stride, 1], padding='SAME', pool=tf.nn.max_pool, name=name+'pool')
+    return pool.outputs
 
 def fc_layer(name, bottom, output_dim, bias_term=True, weights_initializer=None,
              biases_initializer=None, reuse=None):
@@ -104,8 +133,10 @@ def fc_layer(name, bottom, output_dim, bias_term=True, weights_initializer=None,
     input_dim = 1
     for d in shape[1:]:
         input_dim *= d
-    flat_bottom = tf.reshape(bottom, [-1, input_dim])
-
+    # flat_bottom = tf.reshape(bottom, [-1, input_dim])
+    net = tl.layers.InputLayer(inputs=bottom, name=name+'input')
+    flat_bottom = tl.layers.ReshapeLayer(net, [-1, input_dim], name=name+'reshape').outputs
+    
     # weights and biases variables
     with tf.variable_scope(name, reuse=reuse):
         # initialize the variables
